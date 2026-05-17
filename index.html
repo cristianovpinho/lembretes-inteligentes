@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.json" />
 
   <script>
     tailwind.config = {
@@ -166,7 +167,7 @@
           <h1 id="header-date" class="font-serif text-xl text-emerald-700 tracking-tight"></h1>
         </div>
 
-        <button onclick="carregarLembretesDoBanco()" class="text-slate-400 hover:text-emerald-700 transition" aria-label="Atualizar dados">
+        <button onclick="carregarLembretesDoBanco()" class="text-slate-400 hover:text-emerald-700 transition" aria-label="Atualizar data">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18" />
           </svg>
@@ -238,12 +239,6 @@
           <p id="err-data" class="hidden mt-1 text-xs text-red-400">Selecione a data e hora.</p>
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Contato de destino</label>
-          <input id="inp-contato" type="text" placeholder="Telegram, e-mail ou celular…" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"/>
-          <p id="err-contato" class="hidden mt-1 text-xs text-red-400">Informe o contato.</p>
-        </div>
-
         <button id="btn-submit" type="submit" class="mt-1 w-full py-3 rounded-2xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all flex items-center justify-center gap-2">
           <span id="btn-label">Agendar lembrete</span>
         </button>
@@ -308,7 +303,7 @@
       if (logado === "true") {
         document.getElementById("login-screen").classList.add("hidden");
         document.getElementById("app-content").classList.remove("hidden");
-        carregarLembretesDoBanco(); // Busca dados do Supabase imediatamente
+        carregarLembretesDoBanco();
       } else {
         document.getElementById("login-screen").classList.remove("hidden");
         document.getElementById("app-content").classList.add("hidden");
@@ -486,15 +481,15 @@
     });
 
     function esconderErros() {
-      ["err-tarefa","err-cat","err-data","err-contato"].forEach(id => document.getElementById(id).classList.add("hidden"));
+      ["err-tarefa","err-cat","err-data"].forEach(id => document.getElementById(id).classList.add("hidden"));
     }
 
+    // Validação simplificada sem o campo contato
     function validar() {
       let ok = true;
       if (!document.getElementById("inp-tarefa").value.trim()) { document.getElementById("err-tarefa").classList.remove("hidden"); ok = false; }
       if (!categoriaAtiva) { document.getElementById("err-cat").classList.remove("hidden"); ok = false; }
       if (!document.getElementById("inp-data").value) { document.getElementById("err-data").classList.remove("hidden"); ok = false; }
-      if (!document.getElementById("inp-contato").value.trim()) { document.getElementById("err-contato").classList.remove("hidden"); ok = false; }
       return ok;
     }
 
@@ -538,7 +533,6 @@
         tarefa:          document.getElementById("inp-tarefa").value.trim(),
         descricao:       document.getElementById("inp-desc").value.trim(),
         data_hora:       document.getElementById("inp-data").value,
-        usuario_contato: document.getElementById("inp-contato").value.trim(),
         categoria:       categoriaAtiva,
         enviado:         false,
       };
@@ -577,11 +571,10 @@
     }
 
     document.getElementById("form-lembrete").addEventListener("submit", enviarLembrete);
-    ["inp-tarefa","inp-data","inp-contato"].forEach(id => {
+    ["inp-tarefa","inp-data"].forEach(id => {
       document.getElementById(id).addEventListener("input", esconderErros);
     });
 
-    // VERIFICA SE JÁ ESTÁ LOGADO LOGO NO CARREGAMENTO
     verificarSessao();
   </script>
 </body>
