@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lembretes Inteligentes</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans:  ['DM Sans', 'sans-serif'],
+            serif: ['DM Serif Display', 'serif'],
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+
+    /* Animação dos cards ao surgir */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card-enter { animation: fadeUp 0.28s ease forwards; }
+
+    /* Animação do modal ao abrir */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(28px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .modal-enter { animation: slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) forwards; }
+
+    /* Spinner de loading */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* Scrollbar fina na lista */
+    #task-list::-webkit-scrollbar { width: 4px; }
+    #task-list::-webkit-scrollbar-thumb { background: #ddd6fe; border-radius: 99px; }
+
+    /* Picker de data com cor */
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      filter: invert(35%) sepia(60%) saturate(600%) hue-rotate(210deg);
+      cursor: pointer;
+    }
+
+    /* Tags de categoria */
+    .tag-work     { background: #dbeafe; color: #1e40af; }
+    .tag-urgente  { background: #fee2e2; color: #991b1b; }
+    .tag-saude    { background: #dcfce7; color: #166534; }
+    .tag-pessoal  { background: #fef9c3; color: #854d0e; }
+    .tag-financas { background: #ede9fe; color: #5b21b6; }
+
+    /* Botão circular de conclusão */
+    .circle-btn {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid;
+      background: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.18s;
+    }
+    .circle-btn.done {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #fff;
+    }
+
+    /* Card concluído */
+    .task-done { background: #f0fdf4 !important; }
+    .task-done .task-title { text-decoration: line-through; color: #9ca3af; }
+    .task-done .task-sub   { color: #bbf7d0; }
+
+    /* Ações aparecem no hover do card */
+    .task-card .card-actions { opacity: 0; transition: opacity 0.15s; }
+    .task-card:hover .card-actions { opacity: 1; }
+
+    /* Overlay do modal */
+    #modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15, 15, 30, 0.45);
+      z-index: 50;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+
+    /* Painel do modal — bottom sheet no mobile, centralizado no desktop */
+    #modal-panel {
+      width: 100%; max-width: 520px;
+      background: #fff;
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px 36px;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    @media (min-height: 600px) and (min-width: 520px) {
+      #modal-overlay { align-items: center; }
+      #modal-panel   { border-radius: 20px; max-height: 88vh; }
+    }
+
+    /* Toast de feedback */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
+      z-index: 100;
+      pointer-events: none;
+    }
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-100 text-slate-800">
+
+  <!-- =====================================================
+       CABEÇALHO
+  ====================================================== -->
+  <header class="bg-white border-b border-slate-100 sticky top-0 z-10">
+    <div class="max-w-xl mx-auto px-5 py-4 flex items-center justify-between">
+
+      <!-- Menu + data atual -->
+      <div class="flex items-center gap-3">
+        <button class="text-slate-400 hover:text-slate-600 transition" aria-label="Menu">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+        <h1 id="header-date" class="font-serif text-xl text-emerald-700 tracking-tight"></h1>
+      </div>
+
+      <!-- Ícone de calendário -->
+      <button class="text-slate-400 hover:text-slate-600 transition" aria-label="Calendário">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+
+  <!-- =====================================================
+       CONTEÚDO PRINCIPAL
+  ====================================================== -->
+  <main class="max-w-xl mx-auto px-4 py-6 pb-28">
+
+    <!-- Dots de progresso (quantas tarefas concluídas / total) -->
+    <div id="prog-dots" class="flex items-center gap-2 mb-5 px-1" aria-hidden="true"></div>
+
+    <!-- Lista de cards de tarefas -->
+    <div id="task-list" class="flex flex-col gap-3"></div>
+
+    <!-- Estado vazio -->
+    <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-white border border-slate-200
+                  flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor"
+             stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7
+                   a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2
+                   M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+      </div>
+      <p class="text-sm font-medium text-slate-400">Nenhum lembrete ainda</p>
+      <p class="text-xs text-slate-300 mt-1">Toque no <strong>+</strong> para criar o primeiro</p>
+    </div>
+
+  </main>
+
+
+  <!-- =====================================================
+       BOTÃO FLUTUANTE "+"
+  ====================================================== -->
+  <button id="btn-novo"
+          onclick="abrirModal()"
+          style="width:52px; height:52px;"
+          class="fixed bottom-6 right-5 sm:right-[calc(50%-244px)]
+                 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95
+                 text-white shadow-lg shadow-amber-200
+                 flex items-center justify-center
+                 transition-all duration-200 z-40"
+          aria-label="Novo lembrete">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor"
+         stroke-width="2.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+    </svg>
+  </button>
+
+
+  <!-- =====================================================
+       MODAL — FORMULÁRIO DE NOVO LEMBRETE
+  ====================================================== -->
+  <div id="modal-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="modal-title"
+       onclick="fecharModalSeFundo(event)">
+
+    <div id="modal-panel">
+
+      <!-- Handle visual (bottom sheet) -->
+      <div class="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-5"></div>
+
+      <!-- Título + botão fechar -->
+      <div class="flex items-center justify-between mb-6">
+        <h2 id="modal-title" class="font-serif text-lg text-slate-900">Novo lembrete</h2>
+        <button onclick="fecharModal()"
+                class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200
+                       flex items-center justify-center transition"
+                aria-label="Fechar modal">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor"
+               stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Formulário -->
+      <form id="form-lembrete" novalidate class="flex flex-col gap-4">
+
+        <!-- Título da tarefa -->
+        <div>
+          <label for="inp-tarefa"
+                 class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Título da tarefa
+          </label>
+          <input id="inp-tarefa" type="text"
+                 placeholder="Ex: Reunião de planejamento Q3…"
+                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50
+                        text-sm text-slate-800 placeholder-slate-300
+                        focus:outline-none focus:ring-2 focus:ring-indigo-400
+                        focus:border-transparent transition"/>
+          <p id="err-tarefa" class="hidden mt-1 text-xs text-red-400">Preencha o título.</p>
+        </div>
+
+        <!-- Categoria -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Categoria
+          </label>
+          <div id="cat-group" class="flex flex-wrap gap-2">
+            <button type="button" data-cat="work"
+                    class="cat-btn tag-work px-3 py-1 rounded-full text-xs font-semibold
+                           border-2 border-transparent transition">Work</button>
+            <button type="button" data-cat="urgente"
+                    class="cat-btn tag-urgente px-3 py-1 rounded-full text-xs font-semibold
+                           border-2 border-transparent transition">Urgente</button>
+            <button type="button" data-cat="saude"
+                    class="cat-btn tag-saude px-3 py-1 rounded-full text-xs font-semibold
+                           border-2 border-transparent transition">Saúde</button>
+            <button type="button" data-cat="pessoal"
+                    class="cat-btn tag-pessoal px-3 py-1 rounded-full text-xs font-semibold
+                           border-2 border-transparent transition">Pessoal</button>
+            <button type="button" data-cat="financas"
+                    class="cat-btn tag-financas px-3 py-1 rounded-full text-xs font-semibold
+                           border-2 border-transparent transition">Finanças</button>
+          </div>
+          <p id="err-cat" class="hidden mt-1 text-xs text-red-400">Selecione uma categoria.</p>
+        </div>
+
+        <!-- Descrição (opcional) -->
+        <div>
+          <label for="inp-desc"
+                 class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Descrição
+            <span class="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
+          </label>
+          <input id="inp-desc" type="text"
+                 placeholder="Adicione mais detalhes…"
+                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50
+                        text-sm text-slate-800 placeholder-slate-300
+                        focus:outline-none focus:ring-2 focus:ring-indigo-400
+                        focus:border-transparent transition"/>
+        </div>
+
+        <!-- Data e hora -->
+        <div>
+          <label for="inp-data"
+                 class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Data e hora
+          </label>
+          <input id="inp-data" type="datetime-local"
+                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50
+                        text-sm text-slate-800
+                        focus:outline-none focus:ring-2 focus:ring-indigo-400
+                        focus:border-transparent transition"/>
+          <p id="err-data" class="hidden mt-1 text-xs text-red-400">Selecione a data e hora.</p>
+        </div>
+
+        <!-- Contato de destino -->
+        <div>
+          <label for="inp-contato"
+                 class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Contato de destino
+          </label>
+          <input id="inp-contato" type="text"
+                 placeholder="Telegram, e-mail ou celular…"
+                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50
+                        text-sm text-slate-800 placeholder-slate-300
+                        focus:outline-none focus:ring-2 focus:ring-indigo-400
+                        focus:border-transparent transition"/>
+          <p id="err-contato" class="hidden mt-1 text-xs text-red-400">Informe o contato.</p>
+        </div>
+
+        <!-- Botão de envio -->
+        <button id="btn-submit" type="submit"
+                class="mt-1 w-full py-3 rounded-2xl font-semibold text-sm text-white
+                       bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                       transition-all flex items-center justify-center gap-2">
+          <span id="btn-label">Agendar lembrete</span>
+        </button>
+
+      </form>
+    </div>
+  </div>
+
+
+  <!-- =====================================================
+       TOAST DE FEEDBACK
+  ====================================================== -->
+  <div id="toast" role="alert">
+    <div id="toast-inner"
+         class="flex items-center gap-3 px-5 py-3 rounded-2xl text-sm font-medium
+                bg-white border border-slate-200 shadow-lg text-slate-700 whitespace-nowrap">
+    </div>
+  </div>
+
+
+  <!-- =====================================================
+       JAVASCRIPT
+  ====================================================== -->
+  <script>
+
+    // ============================================================
+    // CONFIGURAÇÃO — Substitua pelos seus dados reais do Supabase
+    // ============================================================
+    const SUPABASE_URL = "https://jqwlidtevrodojqtkooo.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_zqdsprq_b__djTHp7Kdsjg_lnEUyuzc";
+    const TABELA       = "lembretes";
+    const API_ENDPOINT = `${SUPABASE_URL}/rest/v1/${TABELA}`;
+    const HEADERS = {
+      "Content-Type":  "application/json",
+      "apikey":        SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Prefer":        "return=representation",
+    };
+
+    // ============================================================
+    // ESTADO LOCAL
+    // ============================================================
+    let lembretes      = [];   // array de objetos de lembrete
+    let categoriaAtiva = "";  // categoria selecionada no formulário
+
+    // Cor do círculo de conclusão por categoria
+    const CIRCLE_COLORS = {
+      work:     "#1e40af",
+      urgente:  "#991b1b",
+      saude:    "#166534",
+      pessoal:  "#854d0e",
+      financas: "#5b21b6",
+    };
+
+    // Label legível de cada categoria
+    const CAT_LABELS = {
+      work:"Work", urgente:"Urgente", saude:"Saúde",
+      pessoal:"Pessoal", financas:"Finanças",
+    };
+
+
+    // ============================================================
+    // DATA NO CABEÇALHO
+    // ============================================================
+    (function setHeaderDate() {
+      const agora = new Date();
+      const str   = agora.toLocaleDateString("pt-BR", { month: "long", day: "numeric" });
+      document.getElementById("header-date").textContent =
+        str.charAt(0).toUpperCase() + str.slice(1);
+    })();
+
+
+    // ============================================================
+    // DOTS DE PROGRESSO
+    // Bolinha verde = concluída | azul = pendente (máx 6 dots)
+    // ============================================================
+    function atualizarDots() {
+      const el     = document.getElementById("prog-dots");
+      const total  = Math.min(lembretes.length, 6);
+      const feitas = lembretes.filter(t => t.enviado).length;
+      let html = "";
+      for (let i = 0; i < total; i++) {
+        const cor = i < feitas ? "#16a34a"
+                  : i < 2     ? "#6366f1"
+                  :             "#cbd5e1";
+        html += `<div style="width:9px;height:9px;border-radius:50%;background:${cor};
+                             transition:background 0.2s"></div>`;
+      }
+      el.innerHTML = html;
+    }
+
+
+    // ============================================================
+    // RENDERIZAR LISTA DE TAREFAS
+    // ============================================================
+    function renderizarLista() {
+      const listEl  = document.getElementById("task-list");
+      const emptyEl = document.getElementById("empty-state");
+
+      atualizarDots();
+
+      if (lembretes.length === 0) {
+        listEl.innerHTML = "";
+        emptyEl.classList.remove("hidden");
+        emptyEl.classList.add("flex");
+        return;
+      }
+
+      emptyEl.classList.add("hidden");
+      emptyEl.classList.remove("flex");
+
+      listEl.innerHTML = lembretes.map((item, idx) => {
+        const cor    = CIRCLE_COLORS[item.categoria] || "#6366f1";
+        const done   = item.enviado;
+        const label  = CAT_LABELS[item.categoria] || item.categoria || "—";
+
+        // Ícone de check dentro do círculo quando concluído
+        const checkIcon = done
+          ? `<svg style="width:11px;height:11px" fill="none" stroke="currentColor"
+                  stroke-width="3" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+             </svg>`
+          : "";
+
+        // Data formatada
+        const dataFmt = item.data_hora
+          ? (() => {
+              const d = new Date(item.data_hora);
+              return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"short" })
+                   + " às "
+                   + d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+            })()
+          : "";
+
+        return `
+          <div class="task-card ${done ? "task-done" : "bg-white"}
+                      rounded-2xl border border-slate-100
+                      flex items-start gap-3 px-4 py-4
+                      card-enter transition-all"
+               style="animation-delay:${idx * 45}ms">
+
+            <!-- Ícone de arrastar -->
+            <div class="mt-1 flex-shrink-0 cursor-grab select-none
+                        text-slate-300 hover:text-slate-400 transition">
+              <svg style="width:14px;height:14px" fill="currentColor" viewBox="0 0 20 20">
+                <circle cx="7"  cy="5"  r="1.4"/>
+                <circle cx="13" cy="5"  r="1.4"/>
+                <circle cx="7"  cy="10" r="1.4"/>
+                <circle cx="13" cy="10" r="1.4"/>
+                <circle cx="7"  cy="15" r="1.4"/>
+                <circle cx="13" cy="15" r="1.4"/>
+              </svg>
+            </div>
+
+            <!-- Corpo do card -->
+            <div class="flex-1 min-w-0">
+
+              <!-- Tag de categoria -->
+              <span class="tag-${item.categoria || "work"}
+                           inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold mb-2">
+                ${escapeHtml(label)}
+              </span>
+
+              <!-- Título da tarefa -->
+              <p class="task-title text-sm font-semibold text-slate-800 leading-snug">
+                ${escapeHtml(item.tarefa)}
+              </p>
+
+              <!-- Descrição (opcional) -->
+              ${item.descricao
+                ? `<p class="task-sub text-xs text-slate-400 mt-1 leading-relaxed">
+                     ${escapeHtml(item.descricao)}
+                   </p>`
+                : ""}
+
+              <!-- Data e hora -->
+              ${dataFmt
+                ? `<p class="text-xs text-slate-300 mt-1.5 flex items-center gap-1">
+                     <svg style="width:11px;height:11px" fill="none" stroke="currentColor"
+                          stroke-width="2" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round"
+                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                     </svg>
+                     ${dataFmt}
+                   </p>`
+                : ""}
+            </div>
+
+            <!-- Botão excluir (aparece no hover) -->
+            <div class="card-actions flex items-center gap-1 mt-0.5">
+              <button onclick="excluirLembrete(${idx})"
+                      class="w-7 h-7 rounded-lg hover:bg-red-50
+                             flex items-center justify-center transition"
+                      aria-label="Excluir lembrete">
+                <svg style="width:13px;height:13px" class="text-slate-300 hover:text-red-400"
+                     fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                           a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4
+                           a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Círculo de conclusão -->
+            <button class="circle-btn flex-shrink-0 mt-1 ${done ? "done" : ""}"
+                    style="${done ? "" : `border-color:${cor}`}"
+                    onclick="toggleConcluido(${idx})"
+                    aria-label="${done ? "Reabrir" : "Concluir"} tarefa">
+              ${checkIcon}
+            </button>
+
+          </div>
+        `;
+      }).join("");
+    }
+
+
+    // ============================================================
+    // TOGGLE — marcar / desmarcar como concluído
+    // ============================================================
+    function toggleConcluido(idx) {
+      lembretes[idx].enviado = !lembretes[idx].enviado;
+      renderizarLista();
+    }
+
+
+    // ============================================================
+    // EXCLUIR lembrete do array local e re-renderizar
+    // ============================================================
+    function excluirLembrete(idx) {
+      lembretes.splice(idx, 1);
+      renderizarLista();
+      exibirToast("Lembrete removido", "info");
+    }
+
+
+    // ============================================================
+    // MODAL — abrir
+    // ============================================================
+    function abrirModal() {
+      const overlay = document.getElementById("modal-overlay");
+      const panel   = document.getElementById("modal-panel");
+      overlay.classList.add("open");
+      // Reinicia a animação
+      panel.classList.remove("modal-enter");
+      void panel.offsetWidth;
+      panel.classList.add("modal-enter");
+      // Foca o primeiro campo para acessibilidade
+      setTimeout(() => document.getElementById("inp-tarefa").focus(), 50);
+    }
+
+
+    // ============================================================
+    // MODAL — fechar e limpar estado do formulário
+    // ============================================================
+    function fecharModal() {
+      document.getElementById("modal-overlay").classList.remove("open");
+      document.getElementById("form-lembrete").reset();
+      categoriaAtiva = "";
+      document.querySelectorAll(".cat-btn")
+              .forEach(b => b.classList.remove("ring-2","ring-offset-1"));
+      esconderErros();
+    }
+
+    // Fecha somente se clicar no fundo escuro (não no painel)
+    function fecharModalSeFundo(e) {
+      if (e.target === document.getElementById("modal-overlay")) fecharModal();
+    }
+
+    // Atalho de teclado: Escape fecha o modal
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") fecharModal();
+    });
+
+
+    // ============================================================
+    // SELEÇÃO DE CATEGORIA — botões de toggle
+    // ============================================================
+    document.getElementById("cat-group").addEventListener("click", e => {
+      const btn = e.target.closest(".cat-btn");
+      if (!btn) return;
+      categoriaAtiva = btn.dataset.cat;
+      // Remove seleção anterior e marca o novo
+      document.querySelectorAll(".cat-btn")
+              .forEach(b => b.classList.remove("ring-2","ring-offset-1"));
+      btn.classList.add("ring-2", "ring-offset-1");
+      document.getElementById("err-cat").classList.add("hidden");
+    });
+
+
+    // ============================================================
+    // VALIDAÇÃO DO FORMULÁRIO
+    // ============================================================
+    function esconderErros() {
+      ["err-tarefa","err-cat","err-data","err-contato"].forEach(id =>
+        document.getElementById(id).classList.add("hidden")
+      );
+    }
+
+    function validar() {
+      let ok = true;
+      if (!document.getElementById("inp-tarefa").value.trim()) {
+        document.getElementById("err-tarefa").classList.remove("hidden"); ok = false;
+      }
+      if (!categoriaAtiva) {
+        document.getElementById("err-cat").classList.remove("hidden"); ok = false;
+      }
+      if (!document.getElementById("inp-data").value) {
+        document.getElementById("err-data").classList.remove("hidden"); ok = false;
+      }
+      if (!document.getElementById("inp-contato").value.trim()) {
+        document.getElementById("err-contato").classList.remove("hidden"); ok = false;
+      }
+      return ok;
+    }
+
+
+    // ============================================================
+    // TOAST DE FEEDBACK
+    // tipo: "success" | "erro" | "info"
+    // ============================================================
+    let toastTimer = null;
+
+    function exibirToast(msg, tipo = "success") {
+      const toast = document.getElementById("toast");
+      const inner = document.getElementById("toast-inner");
+
+      const icones = {
+        success: `<svg style="width:15px;height:15px;color:#16a34a;flex-shrink:0"
+                       fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>`,
+        erro:    `<svg style="width:15px;height:15px;color:#dc2626;flex-shrink:0"
+                       fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>`,
+        info:    `<svg style="width:15px;height:15px;color:#64748b;flex-shrink:0"
+                       fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>`,
+      };
+
+      inner.innerHTML = (icones[tipo] || icones.info) + `<span>${msg}</span>`;
+      toast.classList.add("show");
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 3500);
+    }
+
+
+    // ============================================================
+    // LOADING NO BOTÃO DE SUBMIT
+    // ============================================================
+    function setCarregando(ativo) {
+      const btn   = document.getElementById("btn-submit");
+      const label = document.getElementById("btn-label");
+      if (ativo) {
+        btn.disabled = true;
+        btn.classList.add("opacity-70","cursor-not-allowed");
+        label.innerHTML = `<span class="spinner"></span>&nbsp; Agendando…`;
+      } else {
+        btn.disabled = false;
+        btn.classList.remove("opacity-70","cursor-not-allowed");
+        label.textContent = "Agendar lembrete";
+      }
+    }
+
+
+    // ============================================================
+    // ENVIAR PARA O SUPABASE
+    // Monta o JSON e faz POST via fetch nativo
+    // ============================================================
+    async function enviarLembrete(e) {
+      e.preventDefault();
+      esconderErros();
+      if (!validar()) return;
+
+      setCarregando(true);
+
+      // Objeto mapeado para as colunas da tabela no Supabase
+      const novoLembrete = {
+        tarefa:          document.getElementById("inp-tarefa").value.trim(),
+        descricao:       document.getElementById("inp-desc").value.trim(),
+        data_hora:       document.getElementById("inp-data").value,
+        usuario_contato: document.getElementById("inp-contato").value.trim(),
+        categoria:       categoriaAtiva,
+        enviado:         false,
+      };
+
+      try {
+        const resp = await fetch(API_ENDPOINT, {
+          method:  "POST",
+          headers: HEADERS,
+          body:    JSON.stringify(novoLembrete),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.message || `HTTP ${resp.status}`);
+        }
+
+        // Supabase retorna o registro inserido graças ao header "Prefer: return=representation"
+        const [inserido] = await resp.json();
+
+        // Adiciona ao início da lista local e re-renderiza
+        lembretes.unshift(inserido || novoLembrete);
+        renderizarLista();
+
+        exibirToast("Lembrete agendado!", "success");
+        fecharModal();
+
+      } catch (err) {
+        console.error("Erro ao enviar:", err);
+        exibirToast("Erro: " + err.message, "erro");
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+
+    // ============================================================
+    // PROTEÇÃO CONTRA XSS
+    // Escapa caracteres especiais antes de inserir no DOM
+    // ============================================================
+    function escapeHtml(texto) {
+      const div = document.createElement("div");
+      div.appendChild(document.createTextNode(texto));
+      return div.innerHTML;
+    }
+
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    document.getElementById("form-lembrete").addEventListener("submit", enviarLembrete);
+
+    // Limpa os erros de validação assim que o usuário começa a digitar
+    ["inp-tarefa","inp-data","inp-contato"].forEach(id => {
+      document.getElementById(id).addEventListener("input", esconderErros);
+    });
+
+    // Renderiza a lista inicial (vazia)
+    renderizarLista();
+
+  </script>
+</body>
+</html>
