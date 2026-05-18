@@ -456,21 +456,24 @@
     }
 
     // Modal UI Controladores
-    function abrirModal() {
-      const hoje = new Date();
-      const ano = hoje.getFullYear();
-      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-      const dia = String(hoje.getDate()).padStart(2, '0');
+   function abrirModal() {
+  // --- ADICIONE ESTE BLOCO AQUI ---
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoje.getDate()).padStart(2, '0');
   // Força o ano-mes-dia combinado com o horário 08:00
   document.getElementById("inp-data").value = `${ano}-${mes}-${dia}T08:00`;
-      const overlay = document.getElementById("modal-overlay");
-      const panel   = document.getElementById("modal-panel");
-      overlay.classList.add("open");
-      panel.classList.remove("modal-enter");
-      void panel.offsetWidth;
-      panel.classList.add("modal-enter");
-      setTimeout(() => document.getElementById("inp-tarefa").focus(), 50);
-    }
+  // ---------------------------------
+
+  const overlay = document.getElementById("modal-overlay");
+  const panel   = document.getElementById("modal-panel");
+  overlay.classList.add("open");
+  panel.classList.remove("modal-enter");
+  void panel.offsetWidth;
+  panel.classList.add("modal-enter");
+  setTimeout(() => document.getElementById("inp-tarefa").focus(), 50);
+}
 
     function fecharModal() {
       document.getElementById("modal-overlay").classList.remove("open");
