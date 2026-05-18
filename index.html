@@ -76,19 +76,22 @@
       color: #fff;
     }
 
-    .task-done { background: #f1f5f9 !important; opacity: 0.55; border-color: #cbd5e1 !important; box-shadow: none !important; transform: none !important; }
+    .task-done { background: #f1f5f9 !important; opacity: 0.55 !important; border-color: #cbd5e1 !important; box-shadow: none !important; transform: none !important; }
     .task-done .task-title { text-decoration: line-through; color: #64748b; }
     .task-done .task-sub   { color: #64748b; }
 
-    /* CORREÇÃO DO ZOOM: Garantindo CSS nativo bem perceptível e sem borrão */
+    /* CSS DO ZOOM FIXADO COM FORÇA TOTAL (!IMPORTANT) */
     .task-card {
-      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, opacity 0.2s;
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
       will-change: transform;
+      position: relative;
     }
+    
+    /* Quando passar o mouse, se NÃO for um card concluído, ele dá o super zoom */
     .task-card:not(.task-done):hover {
-      transform: scale(1.04) translateY(-5px); /* Zoom de 4% e leve subida */
-      box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
-      z-index: 10;
+      transform: scale(1.05) translateY(-6px) !important; /* Aumenta 5% e sobe um pouquinho */
+      box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 10px 10px -5px rgba(15, 23, 42, 0.05) !important;
+      z-index: 30 !important;
     }
 
     .task-card .card-actions { opacity: 0; transition: opacity 0.2s ease; }
@@ -376,7 +379,6 @@
       el.innerHTML = html;
     }
 
-    // FUNÇÃO REESTRUTURADA: SEPARA OS CARDS POR CATEGORIAS DINÂMICAS
     function renderizarLista() {
       const containerEl = document.getElementById("sections-container");
       const emptyEl     = document.getElementById("empty-state");
@@ -393,7 +395,6 @@
       emptyEl.classList.add("hidden");
       emptyEl.classList.remove("flex");
 
-      // Separa o banco de dados seguindo estritamente a ordem pedida
       const grupos = {
         urgente:     lembretes.filter(item => item.categoria === "urgente"),
         normal:      lembretes.filter(item => item.categoria === "normal"),
@@ -409,11 +410,8 @@
       let htmlGeral = "";
       let indexGlobalAnimacao = 0;
 
-      // Percorre os grupos na ordem exata definida no objeto 'grupos'
       for (const chave in grupos) {
         const listaDoGrupo = grupos[chave];
-        
-        // Se não tiver nenhum card nessa categoria, pula a seção
         if (listaDoGrupo.length === 0) continue;
 
         htmlGeral += `
@@ -706,7 +704,7 @@
           if (index !== -1) {
             lembretes[index] = processado || { id: idLembreteEmEdicao, ...dadosLembrete };
           }
-          exibirToast("Lembrete atualizado!", "success");
+          exibirToast("Lembrete updated!", "success");
         } else {
           lembretes.unshift(processado || dadosLembrete);
           exibirToast("Lembrete agendado!", "success");
