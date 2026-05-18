@@ -56,7 +56,6 @@
       cursor: pointer;
     }
 
-    /* Estilos das novas categorias com cores mais vivas */
     .tag-normal      { background: #e0f2fe; color: #0369a1; }
     .tag-urgente     { background: #fee2e2; color: #b91c1c; }
     .tag-naoesquecer { background: #fef3c7; color: #b45309; }
@@ -196,7 +195,7 @@
       </div>
     </main>
 
-    <button id="btn-novo" onclick="abrirModal()" style="width:52px; height:52px;" class="fixed bottom-6 right-5 sm:right-6 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-lg shadow-amber-200 flex items-center justify-center transition-all duration-200 z-40" aria-label="Novo lembrete">
+    <button id="btn-novo" onclick="abrirModalParaCriar()" style="width:52px; height:52px;" class="fixed bottom-6 right-5 sm:right-6 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-lg shadow-amber-200 flex items-center justify-center transition-all duration-200 z-40" aria-label="Novo lembrete">
       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
       </svg>
@@ -218,7 +217,7 @@
       <form id="form-lembrete" novalidate class="flex flex-col gap-4">
         <div>
           <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Título da tarefa</label>
-          <input id="inp-tarefa" type="text" placeholder="Ex: Reunião de planejamento Q3…" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"/>
+          <input id="inp-tarefa" type="text" placeholder="Ex: REUNIÃO DE DIRETORIA…" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"/>
           <p id="err-tarefa" class="hidden mt-1 text-xs text-red-400">Preencha o título.</p>
         </div>
 
@@ -282,8 +281,8 @@
     let lembretes      = [];   
     let categoriaAtiva = "";  
     let corSelecionada = "bg-white"; 
+    let idLembreteEmEdicao = null; // Controla se estamos Criando (null) ou Editando (contém o ID)
 
-    // Mapeamento exato dos labels textuais das novas categorias
     const CAT_LABELS = { normal: "Normal", urgente: "Urgente", naoesquecer: "Não esquecer" };
 
     // AUTH SIMPLES
@@ -375,7 +374,6 @@
         const label  = CAT_LABELS[item.categoria] || item.categoria || "Normal";
         const corCard = item.cor || 'bg-white';
 
-        // Garante contraste adequado se o card tiver cor escura de fundo
         const isDarkCard = corCard.includes('500') || corCard.includes('600');
         const textTitleColor = done ? "" : (isDarkCard ? "text-white" : "text-slate-800");
         const textSubColor = done ? "" : (isDarkCard ? "text-slate-100/80" : "text-slate-500");
@@ -395,7 +393,13 @@
               <div class="flex items-center justify-between mb-3.5">
                 <span class="tag-${item.categoria || "normal"} inline-block px-3 py-0.5 rounded-full text-xs font-bold shadow-sm">${escapeHtml(label)}</span>
                 
-                <div class="card-actions flex items-center gap-1">
+                <div class="card-actions flex items-center gap-1.5">
+                  <button onclick="abrirModalParaEditar('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/10" : "hover:bg-slate-200/60"} flex items-center justify-center transition" aria-label="Editar lembrete">
+                    <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-500 hover:text-slate-700"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                  </button>
+
                   <button onclick="excluirLembreteDoBanco('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/10" : "hover:bg-red-100"} flex items-center justify-center transition" aria-label="Excluir lembrete">
                     <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-red-600"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -455,31 +459,76 @@
       }
     }
 
-    // Modal UI Controladores
-   function abrirModal() {
-  // --- ADICIONE ESTE BLOCO AQUI ---
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-  const dia = String(hoje.getDate()).padStart(2, '0');
-  // Força o ano-mes-dia combinado com o horário 08:00
-  document.getElementById("inp-data").value = `${ano}-${mes}-${dia}T08:00`;
-  // ---------------------------------
+    // CONFIGURAÇÃO DO PADRÃO DE HORA (08:00 AM)
+    function aplicarDataHoraPadrao() {
+      const hoje = new Date();
+      const ano = hoje.getFullYear();
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const dia = String(hoje.getDate()).padStart(2, '0');
+      document.getElementById("inp-data").value = `${ano}-${mes}-${dia}T08:00`;
+    }
 
-  const overlay = document.getElementById("modal-overlay");
-  const panel   = document.getElementById("modal-panel");
-  overlay.classList.add("open");
-  panel.classList.remove("modal-enter");
-  void panel.offsetWidth;
-  panel.classList.add("modal-enter");
-  setTimeout(() => document.getElementById("inp-tarefa").focus(), 50);
-}
+    // MODAL: CRIAR NOVO REGISTRO
+    function abrirModalParaCriar() {
+      idLembreteEmEdicao = null; // Modo Criação
+      document.getElementById("modal-title").textContent = "Novo lembrete";
+      document.getElementById("btn-label").textContent = "Agendar lembrete";
+      
+      aplicarDataHoraPadrao();
+      abrirModalAnimacao();
+    }
+
+    // MODAL: EDITAR REGISTRO EXISTENTE
+    function abrirModalParaEditar(id) {
+      const item = lembretes.find(l => l.id == id);
+      if (!item) return;
+
+      idLembreteEmEdicao = id; // Modo Edição
+      document.getElementById("modal-title").textContent = "Editar lembrete";
+      document.getElementById("btn-label").textContent = "Salvar alterações";
+
+      // Preenche os inputs com os dados existentes
+      document.getElementById("inp-tarefa").value = item.tarefa;
+      document.getElementById("inp-desc").value = item.descricao || "";
+      
+      // Ajusta o input datetime-local cortando os segundos se vier do banco completo
+      if (item.data_hora) {
+        document.getElementById("inp-data").value = item.data_hora.slice(0, 16);
+      }
+
+      // Ativa o botão da categoria correta
+      categoriaAtiva = item.categoria;
+      document.querySelectorAll(".cat-btn").forEach(b => {
+        if(b.dataset.cat === categoriaAtiva) b.classList.add("ring-2", "ring-offset-1");
+        else b.classList.remove("ring-2", "ring-offset-1");
+      });
+
+      // Ativa a bolinha da cor correta
+      corSelecionada = item.cor || "bg-white";
+      document.querySelectorAll(".color-dot").forEach(b => {
+        if(b.dataset.color === corSelecionada) b.classList.add("selected");
+        else b.classList.remove("selected");
+      });
+
+      abrirModalAnimacao();
+    }
+
+    function abrirModalAnimacao() {
+      const overlay = document.getElementById("modal-overlay");
+      const panel   = document.getElementById("modal-panel");
+      overlay.classList.add("open");
+      panel.classList.remove("modal-enter");
+      void panel.offsetWidth;
+      panel.classList.add("modal-enter");
+      setTimeout(() => document.getElementById("inp-tarefa").focus(), 50);
+    }
 
     function fecharModal() {
       document.getElementById("modal-overlay").classList.remove("open");
       document.getElementById("form-lembrete").reset();
       categoriaAtiva = "";
       corSelecionada = "bg-white";
+      idLembreteEmEdicao = null;
       
       document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("ring-2","ring-offset-1"));
       document.querySelectorAll(".color-dot").forEach(b => b.classList.remove("selected"));
@@ -541,17 +590,20 @@
     function setCarregando(ativo) {
       const btn   = document.getElementById("btn-submit");
       const label = document.getElementById("btn-label");
+      const textoPadrão = idLembreteEmEdicao ? "Salvar alterações" : "Agendar lembrete";
+
       if (ativo) {
         btn.disabled = true;
         btn.classList.add("opacity-70","cursor-not-allowed");
-        label.innerHTML = `<span class="spinner"></span>&nbsp; Agendando…`;
+        label.innerHTML = `<span class="spinner"></span>&nbsp; Processando…`;
       } else {
         btn.disabled = false;
         btn.classList.remove("opacity-70","cursor-not-allowed");
-        label.textContent = "Agendar lembrete";
+        label.textContent = textoPadrão;
       }
     }
 
+    // FUNÇÃO QUE EXECUTA TANTO O CADASTRO QUANTO A EDIÇÃO NO SUPABASE
     async function enviarLembrete(e) {
       e.preventDefault();
       esconderErros();
@@ -559,21 +611,35 @@
 
       setCarregando(true);
 
-      const novoLembrete = {
+      const dadosLembrete = {
+        // .toUpperCase() garante letras sempre maiúsculas na tarefa
         tarefa:          document.getElementById("inp-tarefa").value.trim().toUpperCase(),
         descricao:       document.getElementById("inp-desc").value.trim(),
         data_hora:       document.getElementById("inp-data").value,
         categoria:       categoriaAtiva,
         cor:             corSelecionada, 
-        enviado:         false,
         usuario_contato: "Web App"
       };
 
+      // Se não for edição, insere como tarefa pendente (false)
+      if (!idLembreteEmEdicao) {
+        dadosLembrete.enviado = false;
+      }
+
       try {
-        const resp = await fetch(API_ENDPOINT, {
-          method:  "POST",
+        let url = API_ENDPOINT;
+        let metodo = "POST";
+
+        // Caso seja EDIÇÃO, muda o método para PATCH e mira no ID específico
+        if (idLembreteEmEdicao) {
+          url = `${API_ENDPOINT}?id=eq.${idLembreteEmEdicao}`;
+          metodo = "PATCH";
+        }
+
+        const resp = await fetch(url, {
+          method:  metodo,
           headers: HEADERS,
-          body:    JSON.stringify(novoLembrete),
+          body:    JSON.stringify(dadosLembrete),
         });
 
         if (!resp.ok) {
@@ -582,14 +648,25 @@
         }
 
         const dataRetornada = await resp.json();
-        const inserido = Array.isArray(dataRetornada) ? dataRetornada[0] : dataRetornada;
+        const processado = Array.isArray(dataRetornada) ? dataRetornada[0] : dataRetornada;
 
-        lembretes.unshift(inserido || novoLembrete);
+        if (idLembreteEmEdicao) {
+          // Atualiza o registro alterado localmente na lista
+          const index = lembretes.findIndex(l => l.id == idLembreteEmEdicao);
+          if (index !== -1) {
+            lembretes[index] = processado || { id: idLembreteEmEdicao, ...dadosLembrete };
+          }
+          exibirToast("Lembrete atualizado!", "success");
+        } else {
+          // Adiciona o novo registro no topo da lista
+          lembretes.unshift(processado || dadosLembrete);
+          exibirToast("Lembrete agendado!", "success");
+        }
+
         renderizarLista();
-        exibirToast("Lembrete agendado!", "success");
         fecharModal();
       } catch (err) {
-        console.error("Erro ao enviar:", err);
+        console.error("Erro na operação:", err);
         exibirToast("Erro: " + err.message, "erro");
       } finally {
         setCarregando(false);
