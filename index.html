@@ -457,6 +457,12 @@
 
     // Modal UI Controladores
     function abrirModal() {
+      const hoje = new Date();
+      const ano = hoje.getFullYear();
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const dia = String(hoje.getDate()).padStart(2, '0');
+  // Força o ano-mes-dia combinado com o horário 08:00
+  document.getElementById("inp-data").value = `${ano}-${mes}-${dia}T08:00`;
       const overlay = document.getElementById("modal-overlay");
       const panel   = document.getElementById("modal-panel");
       overlay.classList.add("open");
@@ -551,7 +557,7 @@
       setCarregando(true);
 
       const novoLembrete = {
-        tarefa:          document.getElementById("inp-tarefa").value.trim(),
+        tarefa:          document.getElementById("inp-tarefa").value.trim()..toUpperCase(),
         descricao:       document.getElementById("inp-desc").value.trim(),
         data_hora:       document.getElementById("inp-data").value,
         categoria:       categoriaAtiva,
