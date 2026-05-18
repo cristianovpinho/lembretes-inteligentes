@@ -20,9 +20,6 @@
             sans:  ['DM Sans', 'sans-serif'],
             serif: ['DM Serif Display', 'serif'],
           },
-          scale: {
-            '103': '1.03', // Nova escala customizada para o zoom perfeito
-          }
         },
       },
     }
@@ -79,19 +76,21 @@
       color: #fff;
     }
 
-    /* ESTADO CONCLUÍDO (Mais suave e sem zoom excessivo) */
     .task-done { background: #f1f5f9 !important; opacity: 0.55; border-color: #cbd5e1 !important; box-shadow: none !important; transform: none !important; }
     .task-done .task-title { text-decoration: line-through; color: #64748b; }
     .task-done .task-sub   { color: #64748b; }
 
-    /* EFEITO DE ZOOM E SOMBRA ATIVADO NO HOVER DO CARD ATIVO */
+    /* CORREÇÃO DO ZOOM: Garantindo CSS nativo bem perceptível e sem borrão */
+    .task-card {
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, opacity 0.2s;
+      will-change: transform;
+    }
     .task-card:not(.task-done):hover {
-      transform: scale(1.03) translateY(-4px);
-      box-shadow: 0 12px 20px -8px rgba(15, 23, 42, 0.15);
-      z-index: 2;
+      transform: scale(1.04) translateY(-5px); /* Zoom de 4% e leve subida */
+      box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+      z-index: 10;
     }
 
-    /* Controle de visibilidade das ações do card */
     .task-card .card-actions { opacity: 0; transition: opacity 0.2s ease; }
     .task-card:hover .card-actions { opacity: 1; }
 
@@ -199,9 +198,9 @@
     </header>
 
     <main class="max-w-6xl mx-auto px-4 py-6 pb-28">
-      <div id="prog-dots" class="flex items-center gap-2 mb-5 px-1" aria-hidden="true"></div>
+      <div id="prog-dots" class="flex items-center gap-2 mb-8 px-1" aria-hidden="true"></div>
       
-      <div id="task-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      <div id="sections-container" class="space-y-10"></div>
 
       <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-center">
         <div class="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-4">
@@ -243,8 +242,8 @@
         <div>
           <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Categoria</label>
           <div id="cat-group" class="flex flex-wrap gap-2">
-            <button type="button" data-cat="normal" class="cat-btn tag-normal px-4 py-1.5 rounded-full text-xs font-bold border-2 border-transparent transition">Normal</button>
             <button type="button" data-cat="urgente" class="cat-btn tag-urgente px-4 py-1.5 rounded-full text-xs font-bold border-2 border-transparent transition">Urgente</button>
+            <button type="button" data-cat="normal" class="cat-btn tag-normal px-4 py-1.5 rounded-full text-xs font-bold border-2 border-transparent transition">Normal</button>
             <button type="button" data-cat="naoesquecer" class="cat-btn tag-naoesquecer px-4 py-1.5 rounded-full text-xs font-bold border-2 border-transparent transition">Não esquecer</button>
           </div>
           <p id="err-cat" class="hidden mt-1 text-xs text-red-400">Selecione uma categoria.</p>
@@ -302,7 +301,7 @@
     let corSelecionada = "bg-white"; 
     let idLembreteEmEdicao = null; 
 
-    const CAT_LABELS = { normal: "Normal", urgente: "Urgente", naoesquecer: "Não esquecer" };
+    const CAT_LABELS = { urgente: "Urgente", normal: "Normal", naoesquecer: "Não esquecer" };
 
     // AUTH SIMPLES
     const CREDENCIAIS = { usuario: "admin", senha: "senai123@" };
@@ -360,14 +359,12 @@
       }
     }
 
-    // MELHORIA: ATUALIZA OS DOTS E TAMBÉM OS CONTADORES DO TOPO DO APP
     function atualizarContadoresEDots() {
       const el     = document.getElementById("prog-dots");
       const total  = Math.min(lembretes.length, 6);
       const feitas = lembretes.filter(t => t.enviado).length;
       const pendentes = lembretes.length - feitas;
 
-      // Atualiza os badges textuais do topo
       document.getElementById("count-pendentes").textContent = `${pendentes} PENDENTES`;
       document.getElementById("count-concluidas").textContent = `${feitas} FEITAS`;
 
@@ -379,14 +376,15 @@
       el.innerHTML = html;
     }
 
+    // FUNÇÃO REESTRUTURADA: SEPARA OS CARDS POR CATEGORIAS DINÂMICAS
     function renderizarLista() {
-      const listEl  = document.getElementById("task-list");
-      const emptyEl = document.getElementById("empty-state");
+      const containerEl = document.getElementById("sections-container");
+      const emptyEl     = document.getElementById("empty-state");
 
       atualizarContadoresEDots();
 
       if (lembretes.length === 0) {
-        listEl.innerHTML = "";
+        containerEl.innerHTML = "";
         emptyEl.classList.remove("hidden");
         emptyEl.classList.add("flex");
         return;
@@ -395,61 +393,99 @@
       emptyEl.classList.add("hidden");
       emptyEl.classList.remove("flex");
 
-      listEl.innerHTML = lembretes.map((item, idx) => {
-        const done   = item.enviado;
-        const label  = CAT_LABELS[item.categoria] || item.categoria || "Normal";
-        const corCard = item.cor || 'bg-white';
+      // Separa o banco de dados seguindo estritamente a ordem pedida
+      const grupos = {
+        urgente:     lembretes.filter(item => item.categoria === "urgente"),
+        normal:      lembretes.filter(item => item.categoria === "normal"),
+        naoesquecer: lembretes.filter(item => item.categoria === "naoesquecer")
+      };
 
-        const isDarkCard = corCard.includes('500') || corCard.includes('600');
-        const textTitleColor = done ? "" : (isDarkCard ? "text-white" : "text-slate-800");
-        const textSubColor = done ? "" : (isDarkCard ? "text-slate-100/80" : "text-slate-500");
-        const textDateColor = done ? "" : (isDarkCard ? "text-slate-200/70" : "text-slate-400");
-        const borderCardColor = isDarkCard ? "border-black/10 shadow-md" : "border-slate-200/70 shadow-sm";
+      const titulosGrupos = {
+        urgente:     { texto: "🚨 Urgentes Primeiro", cor: "text-red-600" },
+        normal:      { texto: "⚡ Na Sequência (Normal)", cor: "text-sky-700" },
+        naoesquecer: { texto: "📌 Por Último (Não Esquecer)", cor: "text-amber-700" }
+      };
 
-        const checkIcon = done ? `<svg style="width:11px;height:11px" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>` : "";
+      let htmlGeral = "";
+      let indexGlobalAnimacao = 0;
 
-        const dataFmt = item.data_hora ? (() => {
-          const d = new Date(item.data_hora);
-          return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"short" }) + " às " + d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
-        })() : "";
+      // Percorre os grupos na ordem exata definida no objeto 'grupos'
+      for (const chave in grupos) {
+        const listaDoGrupo = grupos[chave];
+        
+        // Se não tiver nenhum card nessa categoria, pula a seção
+        if (listaDoGrupo.length === 0) continue;
 
-        return `
-          <div class="task-card ${done ? "task-done" : corCard} rounded-2xl border ${borderCardColor} flex flex-col justify-between p-5 card-enter transform transition-all duration-200 ease-out cursor-pointer" style="animation-delay:${idx * 45}ms">
-            <div>
-              <div class="flex items-center justify-between mb-3.5">
-                <span class="tag-${item.categoria || "normal"} inline-block px-3 py-0.5 rounded-full text-xs font-bold shadow-sm">${escapeHtml(label)}</span>
-                
-                <div class="card-actions flex items-center gap-1.5">
-                  <button onclick="abrirModalParaEditar('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-slate-200"} flex items-center justify-center transition duration-150" aria-label="Editar lembrete">
-                    <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-500 hover:text-slate-700"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                    </svg>
-                  </button>
+        htmlGeral += `
+          <div class="section-group">
+            <h3 class="font-serif text-base font-semibold ${titulosGrupos[chave].cor} mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-200/60 pb-2">
+              ${titulosGrupos[chave].texto}
+              <span class="text-xs font-sans px-2 py-0.5 rounded-full bg-slate-200/60 text-slate-600 font-bold">${listaDoGrupo.length}</span>
+            </h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${listaDoGrupo.map((item) => {
+                indexGlobalAnimacao++;
+                const done   = item.enviado;
+                const label  = CAT_LABELS[item.categoria] || item.categoria || "Normal";
+                const corCard = item.cor || 'bg-white';
 
-                  <button onclick="excluirLembreteDoBanco('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-red-100"} flex items-center justify-center transition duration-150" aria-label="Excluir lembrete">
-                    <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-red-600"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+                const isDarkCard = corCard.includes('500') || corCard.includes('600');
+                const textTitleColor = done ? "" : (isDarkCard ? "text-white" : "text-slate-800");
+                const textSubColor = done ? "" : (isDarkCard ? "text-slate-100/80" : "text-slate-500");
+                const textDateColor = done ? "" : (isDarkCard ? "text-slate-200/70" : "text-slate-400");
+                const borderCardColor = isDarkCard ? "border-black/10 shadow-md" : "border-slate-200/70 shadow-sm";
 
-              <p class="task-title text-base font-semibold ${textTitleColor} leading-snug tracking-wide">${escapeHtml(item.tarefa)}</p>
-              ${item.descricao ? `<p class="task-sub text-xs ${textSubColor} mt-1.5 leading-relaxed">${escapeHtml(item.descricao)}</p>` : ""}
-            </div>
+                const checkIcon = done ? `<svg style="width:11px;height:11px" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>` : "";
 
-            <div class="flex items-center justify-between border-t ${isDarkCard ? "border-white/10" : "border-slate-200/50"} pt-3 mt-4">
-              <div class="min-w-0">
-                ${dataFmt ? `<p class="text-xs ${textDateColor} flex items-center gap-1"><svg style="width:12px;height:12px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${dataFmt}</p>` : ""}
-              </div>
+                const dataFmt = item.data_hora ? (() => {
+                  const d = new Date(item.data_hora);
+                  return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"short" }) + " às " + d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+                })() : "";
 
-              <button class="circle-btn flex-shrink-0 ${done ? "done" : (isDarkCard ? "border-slate-200 hover:bg-white/10 text-white" : "hover:border-slate-500")}" onclick="toggleConcluidoNoBanco('${item.id}', ${done})" aria-label="${done ? "Reabrir" : "Concluir"} tarefa">
-                ${checkIcon}
-              </button>
+                return `
+                  <div class="task-card ${done ? "task-done" : corCard} rounded-2xl border ${borderCardColor} flex flex-col justify-between p-5 card-enter" style="animation-delay:${indexGlobalAnimacao * 40}ms">
+                    <div>
+                      <div class="flex items-center justify-between mb-3.5">
+                        <span class="tag-${item.categoria || "normal"} inline-block px-3 py-0.5 rounded-full text-xs font-bold shadow-sm">${escapeHtml(label)}</span>
+                        
+                        <div class="card-actions flex items-center gap-1.5">
+                          <button onclick="abrirModalParaEditar('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-slate-200"} flex items-center justify-center transition duration-150" aria-label="Editar lembrete">
+                            <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-500 hover:text-slate-700"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                            </svg>
+                          </button>
+
+                          <button onclick="excluirLembreteDoBanco('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-red-100"} flex items-center justify-center transition duration-150" aria-label="Excluir lembrete">
+                            <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-red-600"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <p class="task-title text-base font-semibold ${textTitleColor} leading-snug tracking-wide">${escapeHtml(item.tarefa)}</p>
+                      ${item.descricao ? `<p class="task-sub text-xs ${textSubColor} mt-1.5 leading-relaxed">${escapeHtml(item.descricao)}</p>` : ""}
+                    </div>
+
+                    <div class="flex items-center justify-between border-t ${isDarkCard ? "border-white/10" : "border-slate-200/50"} pt-3 mt-4">
+                      <div class="min-w-0">
+                        ${dataFmt ? `<p class="text-xs ${textDateColor} flex items-center gap-1"><svg style="width:12px;height:12px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${dataFmt}</p>` : ""}
+                      </div>
+
+                      <button class="circle-btn flex-shrink-0 ${done ? "done" : (isDarkCard ? "border-slate-200 hover:bg-white/10 text-white" : "hover:border-slate-500")}" onclick="toggleConcluidoNoBanco('${item.id}', ${done})" aria-label="${done ? "Reabrir" : "Concluir"} tarefa">
+                        ${checkIcon}
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
             </div>
           </div>
         `;
-      }).join("");
+      }
+
+      containerEl.innerHTML = htmlGeral;
     }
 
     async function toggleConcluidoNoBanco(id, statusAtual) {
