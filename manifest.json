@@ -1,15 +1,17 @@
 {
-  "name": "Lembretes SENAI",
+  "name": "Lembretes Inteligentes",
   "short_name": "Lembretes",
-  "start_url": ".",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#059669",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/906/906334.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
