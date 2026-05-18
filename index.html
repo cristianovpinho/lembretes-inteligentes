@@ -20,6 +20,9 @@
             sans:  ['DM Sans', 'sans-serif'],
             serif: ['DM Serif Display', 'serif'],
           },
+          scale: {
+            '103': '1.03', // Nova escala customizada para o zoom perfeito
+          }
         },
       },
     }
@@ -76,11 +79,20 @@
       color: #fff;
     }
 
-    .task-done { background: #f1f5f9 !important; opacity: 0.55; border-color: #cbd5e1 !important; box-shadow: none !important; }
+    /* ESTADO CONCLUÍDO (Mais suave e sem zoom excessivo) */
+    .task-done { background: #f1f5f9 !important; opacity: 0.55; border-color: #cbd5e1 !important; box-shadow: none !important; transform: none !important; }
     .task-done .task-title { text-decoration: line-through; color: #64748b; }
     .task-done .task-sub   { color: #64748b; }
 
-    .task-card .card-actions { opacity: 0; transition: opacity 0.15s; }
+    /* EFEITO DE ZOOM E SOMBRA ATIVADO NO HOVER DO CARD ATIVO */
+    .task-card:not(.task-done):hover {
+      transform: scale(1.03) translateY(-4px);
+      box-shadow: 0 12px 20px -8px rgba(15, 23, 42, 0.15);
+      z-index: 2;
+    }
+
+    /* Controle de visibilidade das ações do card */
+    .task-card .card-actions { opacity: 0; transition: opacity 0.2s ease; }
     .task-card:hover .card-actions { opacity: 1; }
 
     #modal-overlay {
@@ -162,13 +174,20 @@
     
     <header class="bg-white border-b border-slate-100 sticky top-0 z-10">
       <div class="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-4">
           <button onclick="logout()" class="text-slate-400 hover:text-red-500 transition" aria-label="Sair">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
           </button>
-          <h1 id="header-date" class="font-serif text-xl text-emerald-700 tracking-tight"></h1>
+          
+          <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+            <h1 id="header-date" class="font-serif text-xl text-emerald-700 tracking-tight"></h1>
+            <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+              <span id="count-pendentes" class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">0 PENDENTES</span>
+              <span id="count-concluidas" class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md">0 FEITAS</span>
+            </div>
+          </div>
         </div>
 
         <button onclick="carregarLembretesDoBanco()" class="text-slate-400 hover:text-emerald-700 transition" aria-label="Atualizar data">
@@ -281,7 +300,7 @@
     let lembretes      = [];   
     let categoriaAtiva = "";  
     let corSelecionada = "bg-white"; 
-    let idLembreteEmEdicao = null; // Controla se estamos Criando (null) ou Editando (contém o ID)
+    let idLembreteEmEdicao = null; 
 
     const CAT_LABELS = { normal: "Normal", urgente: "Urgente", naoesquecer: "Não esquecer" };
 
@@ -341,10 +360,17 @@
       }
     }
 
-    function atualizarDots() {
+    // MELHORIA: ATUALIZA OS DOTS E TAMBÉM OS CONTADORES DO TOPO DO APP
+    function atualizarContadoresEDots() {
       const el     = document.getElementById("prog-dots");
       const total  = Math.min(lembretes.length, 6);
       const feitas = lembretes.filter(t => t.enviado).length;
+      const pendentes = lembretes.length - feitas;
+
+      // Atualiza os badges textuais do topo
+      document.getElementById("count-pendentes").textContent = `${pendentes} PENDENTES`;
+      document.getElementById("count-concluidas").textContent = `${feitas} FEITAS`;
+
       let html = "";
       for (let i = 0; i < total; i++) {
         const cor = i < feitas ? "#16a34a" : i < 2 ? "#6366f1" : "#cbd5e1";
@@ -357,7 +383,7 @@
       const listEl  = document.getElementById("task-list");
       const emptyEl = document.getElementById("empty-state");
 
-      atualizarDots();
+      atualizarContadoresEDots();
 
       if (lembretes.length === 0) {
         listEl.innerHTML = "";
@@ -388,19 +414,19 @@
         })() : "";
 
         return `
-          <div class="task-card ${done ? "task-done" : corCard} rounded-2xl border ${borderCardColor} flex flex-col justify-between p-5 card-enter transition-all" style="animation-delay:${idx * 45}ms">
+          <div class="task-card ${done ? "task-done" : corCard} rounded-2xl border ${borderCardColor} flex flex-col justify-between p-5 card-enter transform transition-all duration-200 ease-out cursor-pointer" style="animation-delay:${idx * 45}ms">
             <div>
               <div class="flex items-center justify-between mb-3.5">
                 <span class="tag-${item.categoria || "normal"} inline-block px-3 py-0.5 rounded-full text-xs font-bold shadow-sm">${escapeHtml(label)}</span>
                 
                 <div class="card-actions flex items-center gap-1.5">
-                  <button onclick="abrirModalParaEditar('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/10" : "hover:bg-slate-200/60"} flex items-center justify-center transition" aria-label="Editar lembrete">
+                  <button onclick="abrirModalParaEditar('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-slate-200"} flex items-center justify-center transition duration-150" aria-label="Editar lembrete">
                     <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-500 hover:text-slate-700"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                     </svg>
                   </button>
 
-                  <button onclick="excluirLembreteDoBanco('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/10" : "hover:bg-red-100"} flex items-center justify-center transition" aria-label="Excluir lembrete">
+                  <button onclick="excluirLembreteDoBanco('${item.id}')" class="w-7 h-7 rounded-lg ${isDarkCard ? "hover:bg-white/20" : "hover:bg-red-100"} flex items-center justify-center transition duration-150" aria-label="Excluir lembrete">
                     <svg style="width:14px;height:14px" class="${isDarkCard ? "text-slate-200 hover:text-white" : "text-slate-400 hover:text-red-600"}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
@@ -408,7 +434,7 @@
                 </div>
               </div>
 
-              <p class="task-title text-base font-semibold ${textTitleColor} leading-snug">${escapeHtml(item.tarefa)}</p>
+              <p class="task-title text-base font-semibold ${textTitleColor} leading-snug tracking-wide">${escapeHtml(item.tarefa)}</p>
               ${item.descricao ? `<p class="task-sub text-xs ${textSubColor} mt-1.5 leading-relaxed">${escapeHtml(item.descricao)}</p>` : ""}
             </div>
 
@@ -459,7 +485,6 @@
       }
     }
 
-    // CONFIGURAÇÃO DO PADRÃO DE HORA (08:00 AM)
     function aplicarDataHoraPadrao() {
       const hoje = new Date();
       const ano = hoje.getFullYear();
@@ -468,9 +493,8 @@
       document.getElementById("inp-data").value = `${ano}-${mes}-${dia}T08:00`;
     }
 
-    // MODAL: CRIAR NOVO REGISTRO
     function abrirModalParaCriar() {
-      idLembreteEmEdicao = null; // Modo Criação
+      idLembreteEmEdicao = null; 
       document.getElementById("modal-title").textContent = "Novo lembrete";
       document.getElementById("btn-label").textContent = "Agendar lembrete";
       
@@ -478,32 +502,27 @@
       abrirModalAnimacao();
     }
 
-    // MODAL: EDITAR REGISTRO EXISTENTE
     function abrirModalParaEditar(id) {
       const item = lembretes.find(l => l.id == id);
       if (!item) return;
 
-      idLembreteEmEdicao = id; // Modo Edição
+      idLembreteEmEdicao = id; 
       document.getElementById("modal-title").textContent = "Editar lembrete";
       document.getElementById("btn-label").textContent = "Salvar alterações";
 
-      // Preenche os inputs com os dados existentes
       document.getElementById("inp-tarefa").value = item.tarefa;
       document.getElementById("inp-desc").value = item.descricao || "";
       
-      // Ajusta o input datetime-local cortando os segundos se vier do banco completo
       if (item.data_hora) {
         document.getElementById("inp-data").value = item.data_hora.slice(0, 16);
       }
 
-      // Ativa o botão da categoria correta
       categoriaAtiva = item.categoria;
       document.querySelectorAll(".cat-btn").forEach(b => {
         if(b.dataset.cat === categoriaAtiva) b.classList.add("ring-2", "ring-offset-1");
         else b.classList.remove("ring-2", "ring-offset-1");
       });
 
-      // Ativa a bolinha da cor correta
       corSelecionada = item.cor || "bg-white";
       document.querySelectorAll(".color-dot").forEach(b => {
         if(b.dataset.color === corSelecionada) b.classList.add("selected");
@@ -603,7 +622,6 @@
       }
     }
 
-    // FUNÇÃO QUE EXECUTA TANTO O CADASTRO QUANTO A EDIÇÃO NO SUPABASE
     async function enviarLembrete(e) {
       e.preventDefault();
       esconderErros();
@@ -612,7 +630,6 @@
       setCarregando(true);
 
       const dadosLembrete = {
-        // .toUpperCase() garante letras sempre maiúsculas na tarefa
         tarefa:          document.getElementById("inp-tarefa").value.trim().toUpperCase(),
         descricao:       document.getElementById("inp-desc").value.trim(),
         data_hora:       document.getElementById("inp-data").value,
@@ -621,7 +638,6 @@
         usuario_contato: "Web App"
       };
 
-      // Se não for edição, insere como tarefa pendente (false)
       if (!idLembreteEmEdicao) {
         dadosLembrete.enviado = false;
       }
@@ -630,7 +646,6 @@
         let url = API_ENDPOINT;
         let metodo = "POST";
 
-        // Caso seja EDIÇÃO, muda o método para PATCH e mira no ID específico
         if (idLembreteEmEdicao) {
           url = `${API_ENDPOINT}?id=eq.${idLembreteEmEdicao}`;
           metodo = "PATCH";
@@ -651,14 +666,12 @@
         const processado = Array.isArray(dataRetornada) ? dataRetornada[0] : dataRetornada;
 
         if (idLembreteEmEdicao) {
-          // Atualiza o registro alterado localmente na lista
           const index = lembretes.findIndex(l => l.id == idLembreteEmEdicao);
           if (index !== -1) {
             lembretes[index] = processado || { id: idLembreteEmEdicao, ...dadosLembrete };
           }
           exibirToast("Lembrete atualizado!", "success");
         } else {
-          // Adiciona o novo registro no topo da lista
           lembretes.unshift(processado || dadosLembrete);
           exibirToast("Lembrete agendado!", "success");
         }
